@@ -12,7 +12,7 @@
 <body class="bg-stone-900 text-stone-300 font-mono min-h-screen">
 
 <div id="app">
-  <!-- top bar — logo, stats -->
+  <!-- top bar — logo, stats, trigger button -->
   <div class="border-b border-stone-700 px-6 py-3 flex items-center justify-between bg-stone-800">
     <div class="flex items-center gap-6">
       <span class="text-amber-400 font-bold">riverroot</span>
@@ -22,8 +22,14 @@
         <span class="text-red-400">{{ failCount }} failed</span>
       </div>
     </div>
+    <button @click="trigger" :disabled="triggering"
+      class="border border-amber-600 text-amber-400 hover:bg-amber-900/30 disabled:opacity-50 px-3 py-1 text-sm transition-colors">
+      {{ triggering ? 'running...' : '> trigger' }}
+    </button>
   </div>
 
+  <!-- two panels — build list on the left, details on the right.
+       this is what was missing before, just one column looked empty -->
   <div class="flex min-h-[calc(100vh-49px)]">
 
     <!-- left panel: build list -->
@@ -57,13 +63,55 @@
         </div>
       </div>
     </div>
+
+    <!-- right panel: selected build details -->
+    <div class="flex-1 overflow-y-auto">
+      <div v-if="!selected" class="flex items-center justify-center h-full text-stone-600 text-sm">
+        select a build
+      </div>
+      <div v-else class="p-6">
+        <!-- build name + pass/fail badge -->
+        <div class="flex items-center gap-3 mb-1">
+          <span class="text-lg font-bold text-stone-100">{{ selected.Pipeline }}</span>
+          <span class="text-xs px-2 py-0.5 border"
+            :class="selected.Failed ? 'border-red-700 text-red-400 bg-red-950/50' : 'border-emerald-700 text-emerald-400 bg-emerald-950/50'">
+            {{ selected.Failed ? 'FAILED' : 'PASSED' }}
+          </span>
+        </div>
+        <div class="text-xs text-stone-500 mb-6">
+          <span v-if="selected.CreatedAt">{{ formatTime(selected.CreatedAt) }}</span>
+          <span class="mx-2">&middot;</span>
+          <span>{{ selected.Steps.length }} steps</span>
+        </div>
+
+        <!-- each step gets its own box with header + output -->
+        <div class="space-y-3">
+          <div v-for="step in selected.Steps" class="border border-stone-700 rounded">
+            <div class="px-3 py-2 flex justify-between items-center bg-stone-800">
+              <div class="flex items-center gap-2 text-sm">
+                <span :class="step.ExitCode === 0 ? 'text-emerald-400' : 'text-red-400'">
+                  {{ step.ExitCode === 0 ? '✓' : '✗' }}
+                </span>
+                <span class="text-stone-200">{{ step.Name }}</span>
+              </div>
+              <span class="text-xs text-stone-500">exit {{ step.ExitCode }}</span>
+            </div>
+            <!-- stdout/stderr — only shows if there's actually output -->
+            <div v-if="step.Stdout || step.Stderr" class="px-3 py-2 bg-stone-950 text-xs">
+              <pre v-if="step.Stdout" class="text-stone-400 whitespace-pre-wrap">{{ step.Stdout }}</pre>
+              <pre v-if="step.Stderr" class="text-red-400/80 whitespace-pre-wrap mt-1">{{ step.Stderr }}</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
 <script>
 Vue.createApp({
   data() {
-    return { builds: [], selected: null }
+    return { builds: [], selected: null, triggering: false }
   },
   computed: {
     // just counting pass/fail for the header stats
@@ -80,6 +128,12 @@ Vue.createApp({
         // auto-select the newest build so the right panel isn't blank on load
         if (this.builds.length && !this.selected) this.selected = this.builds[0]
       })
+    },
+    trigger() {
+      this.triggering = true
+      fetch('/builds', { method: 'POST' })
+        .then(() => { this.load(); this.triggering = false })
+        .catch(() => { this.triggering = false })
     },
     // turns sqlite timestamp into "5m ago" / "2h ago" / date
     // sqlite can return different formats so we try a few
