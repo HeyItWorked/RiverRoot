@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 	"testing"
 	"time"
 )
@@ -33,6 +35,55 @@ func TestRun_StepsRunInListedOrder(t *testing.T) {
 	}
 	if want := "one\ntwo\nthree\n"; string(got) != want {
 		t.Errorf("steps executed in order %q, want %q", got, want)
+	}
+}
+
+// TestRun_ParallelStepsRunTogetherThenSequentialWaits checks parallel steps.
+func TestRun_ParallelStepsRunTogetherThenSequentialWaits(t *testing.T) {
+	dir := t.TempDir()
+	events := filepath.Join(dir, "events.txt")
+	flagA := filepath.Join(dir, "a-started")
+	flagB := filepath.Join(dir, "b-started")
+	p := &Pipeline{
+		Name: "parallel",
+		Steps: []Step{
+			{
+				Name: "p1", Parallel: true,
+				Command: fmt.Sprintf("touch %q; while [ ! -e %q ]; do sleep 0.05; done; sleep 1; echo p1 >> %q", flagA, flagB, events),
+			},
+			{
+				Name: "p2", Parallel: true,
+				Command: fmt.Sprintf("touch %q; while [ ! -e %q ]; do sleep 0.05; done; sleep 1; echo p2 >> %q", flagB, flagA, events),
+			},
+			{Name: "after", Command: fmt.Sprintf("echo after >> %q", events)},
+		},
+	}
+	res := Run(p, dir, 10*time.Second)
+	if res.Failed {
+		t.Fatalf("Run(...) Failed = true, want false; step results: %+v", res.Steps)
+	}
+	got, err := os.ReadFile(events)
+	if err != nil {
+		t.Fatalf("reading events file: %v", err)
+	}
+	lines := strings.Split(strings.TrimSuffix(string(got), "\n"), "\n")
+	if len(lines) != 3 {
+		t.Fatalf("events file = %q, want 3 lines", got)
+	}
+	sort.Strings(lines[:2])
+	if lines[0] != "p1" || lines[1] != "p2" || lines[2] != "after" {
+		t.Errorf("events file = %q, want the two parallel steps then %q", got, "after")
+	}
+	if len(res.Steps) != 3 {
+		t.Fatalf("Run(...) returned %d step results, want 3", len(res.Steps))
+	}
+	names := []string{res.Steps[0].Name, res.Steps[1].Name}
+	sort.Strings(names)
+	if names[0] != "p1" || names[1] != "p2" {
+		t.Errorf("first two step results = %v, want [p1 p2]", names)
+	}
+	if res.Steps[2].Name != "after" {
+		t.Errorf("last step result = %q, want %q", res.Steps[2].Name, "after")
 	}
 }
 
@@ -76,6 +127,35 @@ func TestRun_FailedStepStopsRun(t *testing.T) {
 				t.Errorf("step after failed one ran (%q exists)", marker)
 			}
 		})
+	}
+}
+
+// TestRun_FailedParallelBatchStopsRun checks a failing parallel batch stops.
+func TestRun_FailedParallelBatchStopsRun(t *testing.T) {
+	dir := t.TempDir()
+	marker := filepath.Join(dir, "never-ran.txt")
+	p := &Pipeline{
+		Name: "parallel-fail",
+		Steps: []Step{
+			{Name: "ok", Parallel: true, Command: "true"},
+			{Name: "boom", Parallel: true, Command: "false"},
+			{Name: "never", Command: fmt.Sprintf("echo reached >> %q", marker)},
+		},
+	}
+	res := Run(p, dir, 10*time.Second)
+	if !res.Failed {
+		t.Errorf("Run(...) Failed = false, want true")
+	}
+	if len(res.Steps) != 2 {
+		t.Fatalf("Run(...) returned %d step results, want 2", len(res.Steps))
+	}
+	names := []string{res.Steps[0].Name, res.Steps[1].Name}
+	sort.Strings(names)
+	if names[0] != "boom" || names[1] != "ok" {
+		t.Errorf("batch results = %v", names)
+	}
+	if _, err := os.Stat(marker); err == nil {
+		t.Errorf("step after failed batch ran (%q exists)", marker)
 	}
 }
 
