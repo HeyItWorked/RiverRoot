@@ -36,6 +36,49 @@ func TestRun_StepsRunInListedOrder(t *testing.T) {
 	}
 }
 
+// TestRun_FailedStepStopsRun checks a failing step stops the run.
+func TestRun_FailedStepStopsRun(t *testing.T) {
+	tests := []struct {
+		name     string
+		command  string
+		wantCode int
+	}{
+		{"false fails", "false", 1},
+		{"exit with stderr", "echo boom >&2; exit 7", 7},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			marker := filepath.Join(dir, "never-ran.txt")
+			p := &Pipeline{
+				Name: "failing",
+				Steps: []Step{
+					{Name: "warmup", Command: "true"},
+					{Name: "boom", Command: tt.command},
+					{Name: "never", Command: fmt.Sprintf("echo reached >> %q", marker)},
+				},
+			}
+			res := Run(p, dir, 10*time.Second)
+			if !res.Failed {
+				t.Errorf("Run(...) Failed = false, want true")
+			}
+			if len(res.Steps) != 2 {
+				t.Fatalf("Run(...) returned %d step results, want 2", len(res.Steps))
+			}
+			if s := res.Steps[0]; s.Name != "warmup" || s.ExitCode != 0 {
+				t.Errorf("first step = %+v", s)
+			}
+			s := res.Steps[1]
+			if s.Name != "boom" || s.ExitCode != tt.wantCode {
+				t.Errorf("failed step = %+v", s)
+			}
+			if _, err := os.Stat(marker); err == nil {
+				t.Errorf("step after failed one ran (%q exists)", marker)
+			}
+		})
+	}
+}
+
 // TestRun_RecordsStepResults checks the per-step results.
 func TestRun_RecordsStepResults(t *testing.T) {
 	table := []struct {

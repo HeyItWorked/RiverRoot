@@ -36,14 +36,27 @@ func execStep(step Step, workdir string, timeout time.Duration) StepResult {
 	return StepResult{Name: step.Name, ExitCode: code, Stdout: stdout, Stderr: stderr, Err: err}
 }
 
+// stepFailed reports whether a finished step failed.
+// This is a simple check: either Err is non-nil or ExitCode is non-zero.
+func stepFailed(r StepResult) bool {
+	return r.Err != nil || r.ExitCode != 0
+}
+
 // Run executes the pipeline's steps one at a time, in order.
-// Returns the final BuildResult with all step results.
+// Run never returns an error; failures are recorded on BuildResult instead.
+// Returns the final BuildResult with all step results and the failed flag.
 func Run(p *Pipeline, workdir string, timeout time.Duration) BuildResult {
 	var results []StepResult
+	failed := false
 
 	for _, step := range p.Steps {
-		results = append(results, execStep(step, workdir, timeout))
+		r := execStep(step, workdir, timeout)
+		results = append(results, r)
+		if stepFailed(r) {
+			failed = true
+			break
+		}
 	}
 
-	return BuildResult{Pipeline: p.Name, Steps: results}
+	return BuildResult{Pipeline: p.Name, Steps: results, Failed: failed}
 }
