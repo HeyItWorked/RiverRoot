@@ -1,4 +1,5 @@
-// Package store persists build results as JSON files on disk.
+// Package store persists build results and log files, either as JSON files
+// on disk (JSONStore, LogStore) or as rows in a SQLite database (SQLiteStore).
 package store
 
 import (
