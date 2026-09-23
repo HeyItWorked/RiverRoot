@@ -85,3 +85,11 @@ func TestTriggerBuild_DemoModeIsForbidden(t *testing.T) {
 		t.Errorf("demo mode still ran a build: %+v", builds)
 	}
 }
+
+func TestRoot_ServesDashboard(t *testing.T) {
+	_, h := newTestServer(t, false)
+	rec := get(t, h, "/")
+	if rec.Code != http.StatusOK || rec.Header().Get("Content-Type") != "text/html; charset=utf-8" {
+		t.Errorf("GET / status = %d, content-type = %q", rec.Code, rec.Header().Get("Content-Type"))
+	}
+}
