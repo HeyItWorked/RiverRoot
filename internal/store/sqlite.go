@@ -96,7 +96,49 @@ func (s *SQLiteStore) Save(result pipeline.BuildResult) (string, error) {
 	return id, transaction.Commit()
 }
 
+// Get retrieves a single build and its steps by ID.
+func (s *SQLiteStore) Get(id string) (pipeline.BuildResult, error) {
+	var result pipeline.BuildResult
+	row := s.db.QueryRow("SELECT pipeline, failed, created_at FROM builds WHERE id = ?", id)
+	if err := row.Scan(&result.Pipeline, &result.Failed, &result.CreatedAt); err != nil {
+		return pipeline.BuildResult{}, err
+	}
+	result.ID = id
+	steps, err := s.querySteps(id)
+	if err != nil {
+		return pipeline.BuildResult{}, err
+	}
+	result.Steps = steps
+	return result, nil
+}
+
 // Close closes the database connection.
 func (s *SQLiteStore) Close() error {
 	return s.db.Close()
+}
+
+// querySteps fetches all steps for a given build, ordered by seq.
+func (s *SQLiteStore) querySteps(buildID string) ([]pipeline.StepResult, error) {
+	rows, err := s.db.Query(
+		"SELECT name, exit_code, stdout, stderr, error FROM steps WHERE build_id = ? ORDER BY seq",
+		buildID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var steps []pipeline.StepResult
+	for rows.Next() {
+		var step pipeline.StepResult
+		var errStr sql.NullString
+		if err = rows.Scan(&step.Name, &step.ExitCode, &step.Stdout, &step.Stderr, &errStr); err != nil {
+			return nil, err
+		}
+		if errStr.Valid {
+			step.Err = errors.New(errStr.String)
+		}
+		steps = append(steps, step)
+	}
+	return steps, rows.Err()
 }
