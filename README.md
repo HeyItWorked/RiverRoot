@@ -1,95 +1,89 @@
+<div align="center">
+
+<img src=".github/assets/riverroot-mark.png" alt="The riverroot mascot" width="180">
+
 # riverroot
 
-A small self-hosted CI server written in Go. It reads a `pipeline.yaml`, runs each step as a local process or inside a Docker container, saves every build to SQLite, and shows the results on a dashboard.
+**Run each pipeline step on the host or in a container, and see the builds**
 
-Built to learn how CI systems work underneath: process execution, timeouts, parallelism, persistence and a REST API, with as few dependencies as possible.
+Describe your steps in a YAML file, start the server, and open the dashboard to see how each build went.
 
-## What it does
+</div>
 
-- **Steps run in order** and the build stops at the first failing step. A non-zero exit fails the build; it is not treated as an error in riverroot itself.
-- **Parallel steps**: consecutive steps marked `parallel: true` run together as one batch, and the next step waits for the whole batch.
-- **Container steps**: a step with an `image` runs inside that Docker image, with the working directory mounted at `/workspace`.
-- **Timeouts**: each step gets 5 minutes, then it's killed.
-- **Persistence**: builds and their step output are stored in SQLite (`data/riverroot.db`), so they survive restarts.
-- **Dashboard + REST API** served from the same binary; the HTML is embedded at compile time.
+## Demo
 
-## Quick start
+The dashboard lists builds on the left; selecting one shows its steps and their output.
 
-Needs Go 1.26+. Container steps also need Docker.
+![The riverroot dashboard listing builds, with the selected build's lint, test and build steps](.github/assets/riverroot-screenshot.png)
+
+## Install
 
 ```bash
-mkdir -p data                  # the SQLite file lives here
-go run ./cmd/riverroot         # dashboard on http://localhost:8080
+git clone https://github.com/HeyItWorked/riverroot && cd riverroot
 ```
 
-Trigger a build from the dashboard's `> trigger` button, or:
+Requires Go 1.26 and, for steps that name an image, Docker.
+
+## Quickstart
+
+Run it from the repository root, where `pipeline.yaml` already defines three steps:
 
 ```bash
-curl -X POST localhost:8080/builds
+mkdir -p data
+go run ./cmd/riverroot
 ```
 
-### Demo mode
+```text
+riverroot running on http://localhost:8080
+```
+
+Open http://localhost:8080 for the dashboard, then trigger a build:
 
 ```bash
-DEMO=1 go run ./cmd/riverroot
+curl -X POST http://localhost:8080/builds
 ```
 
-Seeds a couple of fake builds so the dashboard has something to show, and disables the trigger endpoint (it returns 403). Meant for public deployments where nobody should be able to run commands on the host.
+The `test` and `vet` steps run in parallel, `build` runs after them, and each one's output shows on the build's page.
 
-## pipeline.yaml
+## Configuration
 
-riverroot loads `pipeline.yaml` from the directory it's started in, and runs the steps from that directory.
+`pipeline.yaml` names the pipeline and lists its steps:
 
 ```yaml
 name: my-app
 steps:
-  - name: build
-    command: go build ./...
-  - name: lint
+  - name: test
+    command: go test ./...
+    image: golang:1.26
+    parallel: true
+  - name: vet
     command: go vet ./...
     parallel: true
-  - name: unit
-    command: go test ./...
-    parallel: true
-  - name: integration
-    command: go test -tags=integration ./...
-    image: golang:1.26
+  - name: build
+    command: go build ./...
 ```
 
-`lint` and `unit` run together; `integration` starts once both pass. Commands go through `bash -c`, so pipes and `&&` work as they would in a terminal.
+| Field | Type | Description |
+| --- | --- | --- |
+| `name` | string | Label shown for the step in the dashboard |
+| `command` | string | Shell command the step runs |
+| `image` | string | Docker image to run the command in; runs as a host process when omitted |
+| `parallel` | bool | Run alongside the other parallel steps instead of waiting its turn |
+
+Consecutive steps marked `parallel` run together. The next sequential step waits for all of them.
 
 ## API
 
-| Method | Path | Returns |
-|--------|------|---------|
-| `GET` | `/` | the dashboard |
-| `GET` | `/builds` | every build, newest first |
-| `GET` | `/builds/{id}` | one build with its steps, or 404 |
-| `POST` | `/builds` | runs the pipeline, saves it, returns `{"id": "..."}` (403 in demo mode) |
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/builds` | List builds, newest first |
+| `GET` | `/builds/{id}` | One build with its steps and output |
+| `POST` | `/builds` | Trigger a build of the current pipeline |
+| `GET` | `/` | The embedded dashboard |
 
-## Layout
+## Notes
 
-```
-cmd/riverroot/       entrypoint: opens the store, loads pipeline.yaml, starts the server
-internal/runner/     process execution: RunCommand, RunStreaming, RunInContainer
-internal/pipeline/   config loading and step execution (sequential, parallel, container)
-internal/store/      persistence: SQLiteStore, JSONStore, LogStore, demo seeding
-internal/git/        git helpers: latest commit, changed files, polling for new commits
-internal/api/        HTTP server: REST endpoints and the embedded dashboard
-```
-
-The `git` package isn't wired into the server yet. It's the groundwork for triggering builds on new commits instead of by hand.
-
-## Development
-
-```bash
-go vet ./...
-go test ./...
-```
-
-Conventions:
-
-- Standard library first; dependencies are only what's needed (`yaml`, `sync`, `docker`, `sqlite`, `uuid`).
-- `internal/` for everything that isn't the entrypoint, so nothing is importable from outside the module.
-- Errors wrap with `%w` where a caller may want to inspect the cause.
-- Commit messages use conventional commits: `type(scope): subject`.
+- **Set `DEMO=1`** to seed example builds and disable `POST /builds`, so visitors cannot execute commands on the host.
+- **There is no authentication.** The API and dashboard are for local use, not a shared network.
+- **Builds are stored in SQLite** at `data/riverroot.db`.
+- **Tests run with `go test ./...`.** Steps without an image run on the host, so the runner and pipeline tests need `bash`.

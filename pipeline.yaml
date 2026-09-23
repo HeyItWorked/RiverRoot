@@ -1,6 +1,11 @@
-name: riverroot
+name: my-app
 steps:
-  - name: vet
-    command: go vet ./...
   - name: test
     command: go test ./...
+    image: golang:1.26
+    parallel: true
+  - name: vet
+    command: go vet ./...
+    parallel: true
+  - name: build
+    command: go build ./...
