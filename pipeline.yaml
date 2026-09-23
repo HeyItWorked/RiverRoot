@@ -1,0 +1,6 @@
+name: riverroot
+steps:
+  - name: vet
+    command: go vet ./...
+  - name: test
+    command: go test ./...
