@@ -10,6 +10,54 @@ import (
 	"github.com/HeyItWorked/riverroot/internal/pipeline"
 )
 
+type storeFactory struct {
+	name string
+	new  func(t *testing.T) BuildStore
+}
+
+func buildStoreFactories() []storeFactory {
+	return []storeFactory{
+		{
+			name: "json",
+			new: func(t *testing.T) BuildStore {
+				s, err := NewJSONStore(t.TempDir())
+				if err != nil {
+					t.Fatalf("NewJSONStore: %v", err)
+				}
+				return s
+			},
+		},
+		{
+			name: "sqlite",
+			new: func(t *testing.T) BuildStore {
+				s, err := NewSQLiteStore(filepath.Join(t.TempDir(), "builds.db"))
+				if err != nil {
+					t.Fatalf("NewSQLiteStore: %v", err)
+				}
+				t.Cleanup(func() { s.Close() })
+				return s
+			},
+		},
+	}
+}
+
+func sampleBuild(name string, failed bool) pipeline.BuildResult {
+	return pipeline.BuildResult{
+		Pipeline: name,
+		Failed:   failed,
+		Steps: []pipeline.StepResult{
+			{Name: "lint", ExitCode: 0, Stdout: "checking style...\nno issues found\n"},
+			{Name: "test", ExitCode: 1, Stdout: "--- FAIL: TestUserAuth\n", Stderr: "FAIL\n"},
+		},
+	}
+}
+
+func storedShape(r pipeline.BuildResult) pipeline.BuildResult {
+	r.ID = ""
+	r.CreatedAt = ""
+	return r
+}
+
 func TestSQLiteStore_SaveWritesBuildAndSteps(t *testing.T) {
 	s, err := NewSQLiteStore(filepath.Join(t.TempDir(), "builds.db"))
 	if err != nil {

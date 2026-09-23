@@ -10,7 +10,7 @@ import (
 	_ "modernc.org/sqlite" // registers the "sqlite" driver
 )
 
-// SQLiteStore stores builds in SQLite instead of JSON files.
+// SQLiteStore implements BuildStore using SQLite instead of JSON files.
 type SQLiteStore struct {
 	db *sql.DB
 }
@@ -110,6 +110,32 @@ func (s *SQLiteStore) Get(id string) (pipeline.BuildResult, error) {
 	}
 	result.Steps = steps
 	return result, nil
+}
+
+// List returns all builds with their steps, newest first.
+func (s *SQLiteStore) List() ([]pipeline.BuildResult, error) {
+	rows, err := s.db.Query("SELECT id, pipeline, failed, created_at FROM builds ORDER BY created_at DESC")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []pipeline.BuildResult
+	for rows.Next() {
+		var id string
+		var result pipeline.BuildResult
+		if err = rows.Scan(&id, &result.Pipeline, &result.Failed, &result.CreatedAt); err != nil {
+			return nil, err
+		}
+		result.ID = id
+		steps, err := s.querySteps(id)
+		if err != nil {
+			return nil, err
+		}
+		result.Steps = steps
+		results = append(results, result)
+	}
+	return results, rows.Err()
 }
 
 // Close closes the database connection.

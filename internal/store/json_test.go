@@ -11,39 +11,26 @@ import (
 	"github.com/HeyItWorked/riverroot/internal/pipeline"
 )
 
-func sampleBuild(name string, failed bool) pipeline.BuildResult {
-	return pipeline.BuildResult{
-		Pipeline: name,
-		Failed:   failed,
-		Steps: []pipeline.StepResult{
-			{Name: "lint", ExitCode: 0, Stdout: "checking style...\nno issues found\n"},
-			{Name: "test", ExitCode: 1, Stdout: "--- FAIL: TestUserAuth\n", Stderr: "FAIL\n"},
-		},
-	}
-}
-
-func storedShape(r pipeline.BuildResult) pipeline.BuildResult {
-	r.ID = ""
-	r.CreatedAt = ""
-	return r
-}
-
-func TestJSONStore_GetRoundTrip(t *testing.T) {
-	s, err := NewJSONStore(t.TempDir())
-	if err != nil {
-		t.Fatalf("NewJSONStore: %v", err)
-	}
-	want := sampleBuild("my-app", true)
-	id, err := s.Save(want)
-	if err != nil {
-		t.Fatalf("Save: %v", err)
-	}
-	got, err := s.Get(id)
-	if err != nil {
-		t.Fatalf("Get(%q): %v", id, err)
-	}
-	if !reflect.DeepEqual(storedShape(got), storedShape(want)) {
-		t.Errorf("Get(%q)", id)
+func TestBuildStore_GetRoundTrip(t *testing.T) {
+	for _, f := range buildStoreFactories() {
+		t.Run(f.name, func(t *testing.T) {
+			s := f.new(t)
+			want := sampleBuild("my-app", true)
+			id, err := s.Save(want)
+			if err != nil {
+				t.Fatalf("Save: %v", err)
+			}
+			got, err := s.Get(id)
+			if err != nil {
+				t.Fatalf("Get(%q): %v", id, err)
+			}
+			if !reflect.DeepEqual(storedShape(got), storedShape(want)) {
+				t.Errorf("Get(%q)", id)
+			}
+			if _, err := s.Get("no-such-build"); err == nil {
+				t.Errorf("Get(unknown id) err = nil")
+			}
+		})
 	}
 }
 
