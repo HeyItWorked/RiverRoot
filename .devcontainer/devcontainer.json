@@ -1,0 +1,25 @@
+{
+  "name": "riverroot",
+  "build": { "dockerfile": "Dockerfile" },
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "golang.go"
+      ],
+      "settings": {
+        "editor.quickSuggestions": {
+          "other": "off",
+          "comments": "off",
+          "strings": "off"
+        },
+        "editor.suggestOnTriggerCharacters": false,
+        "editor.parameterHints.enabled": false
+      }
+    }
+  },
+  "onCreateCommand": "sudo rm -f /etc/apt/sources.list.d/yarn.list || true",
+  "postCreateCommand": "go mod tidy"
+}
