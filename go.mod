@@ -6,6 +6,8 @@ require gopkg.in/yaml.v3 v3.0.1
 
 require golang.org/x/sync v0.23.0
 
+require github.com/google/uuid v1.6.0
+
 require (
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
