@@ -76,3 +76,31 @@ func TestJSONStore_GetUnknownIDReturnsNotExist(t *testing.T) {
 		t.Errorf("Get(unknown id) = %+v", got)
 	}
 }
+
+func TestJSONStore_ListIgnoresUnusableFiles(t *testing.T) {
+	dir := t.TempDir()
+	s, err := NewJSONStore(dir)
+	if err != nil {
+		t.Fatalf("NewJSONStore: %v", err)
+	}
+	want := sampleBuild("my-app", false)
+	if _, err := s.Save(want); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "notes.txt"), []byte("not a build"), 0o644); err != nil {
+		t.Fatalf("writing fixture: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "broken.json"), []byte("{not json"), 0o644); err != nil {
+		t.Fatalf("writing fixture: %v", err)
+	}
+	got, err := s.List()
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("List returned %d builds, want 1", len(got))
+	}
+	if !reflect.DeepEqual(storedShape(got[0]), storedShape(want)) {
+		t.Errorf("List()")
+	}
+}

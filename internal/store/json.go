@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/HeyItWorked/riverroot/internal/pipeline"
 	"github.com/google/uuid"
@@ -14,6 +15,7 @@ import (
 type BuildStore interface {
 	Save(result pipeline.BuildResult) (string, error)
 	Get(id string) (pipeline.BuildResult, error)
+	List() ([]pipeline.BuildResult, error)
 }
 
 // JSONStore implements BuildStore using JSON files on disk.
@@ -54,4 +56,25 @@ func (s *JSONStore) Get(id string) (pipeline.BuildResult, error) {
 		return pipeline.BuildResult{}, err
 	}
 	return result, nil
+}
+
+// List returns all build results stored in the directory.
+func (s *JSONStore) List() ([]pipeline.BuildResult, error) {
+	entries, err := os.ReadDir(s.dir)
+	if err != nil {
+		return nil, err
+	}
+	var results []pipeline.BuildResult
+	for _, entry := range entries {
+		if !strings.HasSuffix(entry.Name(), ".json") {
+			continue
+		}
+		id := strings.TrimSuffix(entry.Name(), ".json")
+		result, err := s.Get(id)
+		if err != nil {
+			continue // skip unreadable files
+		}
+		results = append(results, result)
+	}
+	return results, nil
 }
