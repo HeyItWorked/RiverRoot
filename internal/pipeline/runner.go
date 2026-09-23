@@ -31,11 +31,22 @@ type BuildResult struct {
 	Failed    bool
 }
 
-// execStep runs one step as a local process in workdir.
+// execStep runs one step — in a container if Image is set, else local process.
 // Non-zero exit is normal (Err=nil), only real failures come back as err.
 // This was bug #31 — a bare `false` must fail the build.
 func execStep(step Step, workdir string, timeout time.Duration) StepResult {
-	stdout, stderr, code, err := runner.RunCommand("bash", []string{"-c", step.Command}, workdir, timeout)
+	var stdout, stderr string
+	var code int
+	var err error
+
+	if step.Image != "" {
+		// container step — workdir mounted at /workspace inside
+		stdout, stderr, code, err = runner.RunInContainer(step.Image, workdir, []string{"bash", "-c", step.Command}, timeout)
+	} else {
+		// no image — run locally in workdir
+		stdout, stderr, code, err = runner.RunCommand("bash", []string{"-c", step.Command}, workdir, timeout)
+	}
+
 	return StepResult{Name: step.Name, ExitCode: code, Stdout: stdout, Stderr: stderr, Err: err}
 }
 
