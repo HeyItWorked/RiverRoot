@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>riverroot</title>
+  <!-- static version of the dashboard for GitHub Pages.
+       same as internal/api/static/index.html but loads from
+       data.json instead of /builds and has no trigger button -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+</head>
+<body class="bg-stone-900 text-stone-300 font-mono min-h-screen">
+
+<div id="app">
+  <!-- top bar — logo + stats, no trigger button -->
+  <div class="border-b border-stone-700 px-6 py-3 flex items-center justify-between bg-stone-800">
+    <div class="flex items-center gap-6">
+      <span class="text-amber-400 font-bold">riverroot</span>
+      <div v-if="builds.length" class="flex items-center gap-4 text-sm text-stone-500">
+        <span>{{ builds.length }} builds</span>
+        <span class="text-emerald-400">{{ passCount }} passed</span>
+        <span class="text-red-400">{{ failCount }} failed</span>
+      </div>
+    </div>
+    <span class="text-xs text-stone-600">demo</span>
+  </div>
+
+  <!-- two panels -->
+  <div class="flex min-h-[calc(100vh-49px)]">
+
+    <!-- left panel: build list -->
+    <div class="w-80 border-r border-stone-700 overflow-y-auto bg-stone-850">
+      <div v-for="(b, i) in builds" :key="b.ID || i"
+        @click="selected = b"
+        class="px-4 py-3 border-b border-stone-800 cursor-pointer hover:bg-stone-800 transition-colors border-l-2"
+        :class="selected === b
+          ? (b.Failed ? 'bg-stone-800 border-l-red-400' : 'bg-stone-800 border-l-emerald-400')
+          : 'border-l-transparent'">
+        <div class="flex items-center gap-2">
+          <span class="text-xs" :class="b.Failed ? 'text-red-400' : 'text-emerald-400'">
+            {{ b.Failed ? '✗' : '✓' }}
+          </span>
+          <span class="text-sm font-bold text-stone-200">{{ b.Pipeline }}</span>
+          <span class="text-xs text-stone-500">#{{ builds.length - i }}</span>
+        </div>
+        <div class="mt-1 flex items-center gap-3 text-xs text-stone-500">
+          <span v-if="b.CreatedAt">{{ formatTime(b.CreatedAt) }}</span>
+          <span>{{ b.Steps.length }} steps</span>
+          <span class="flex gap-0.5">
+            <span v-for="step in b.Steps"
+              class="w-1.5 h-1.5 rounded-full"
+              :class="step.ExitCode === 0 ? 'bg-emerald-500' : 'bg-red-500'"
+              :title="step.Name"></span>
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- right panel: selected build details -->
+    <div class="flex-1 overflow-y-auto">
+      <div v-if="!selected" class="flex items-center justify-center h-full text-stone-600 text-sm">
+        select a build
+      </div>
+      <div v-else class="p-6">
+        <div class="flex items-center gap-3 mb-1">
+          <span class="text-lg font-bold text-stone-100">{{ selected.Pipeline }}</span>
+          <span class="text-xs px-2 py-0.5 border"
+            :class="selected.Failed ? 'border-red-700 text-red-400 bg-red-950/50' : 'border-emerald-700 text-emerald-400 bg-emerald-950/50'">
+            {{ selected.Failed ? 'FAILED' : 'PASSED' }}
+          </span>
+        </div>
+        <div class="text-xs text-stone-500 mb-6">
+          <span v-if="selected.CreatedAt">{{ formatTime(selected.CreatedAt) }}</span>
+          <span class="mx-2">&middot;</span>
+          <span>{{ selected.Steps.length }} steps</span>
+        </div>
+
+        <div class="space-y-3">
+          <div v-for="step in selected.Steps" class="border border-stone-700 rounded">
+            <div class="px-3 py-2 flex justify-between items-center bg-stone-800">
+              <div class="flex items-center gap-2 text-sm">
+                <span :class="step.ExitCode === 0 ? 'text-emerald-400' : 'text-red-400'">
+                  {{ step.ExitCode === 0 ? '✓' : '✗' }}
+                </span>
+                <span class="text-stone-200">{{ step.Name }}</span>
+              </div>
+              <span class="text-xs text-stone-500">exit {{ step.ExitCode }}</span>
+            </div>
+            <div v-if="step.Stdout || step.Stderr" class="px-3 py-2 bg-stone-950 text-xs">
+              <pre v-if="step.Stdout" class="text-stone-400 whitespace-pre-wrap">{{ step.Stdout }}</pre>
+              <pre v-if="step.Stderr" class="text-red-400/80 whitespace-pre-wrap mt-1">{{ step.Stderr }}</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+Vue.createApp({
+  data() {
+    return { builds: [], selected: null }
+  },
+  computed: {
+    passCount() { return this.builds.filter(b => !b.Failed).length },
+    failCount() { return this.builds.filter(b => b.Failed).length }
+  },
+  mounted() {
+    // loads from baked json file instead of a live API
+    fetch('data.json').then(r => r.json()).then(data => {
+      this.builds = data || []
+      if (this.builds.length) this.selected = this.builds[0]
+    })
+  },
+  methods: {
+    formatTime(ts) {
+      let d = new Date(ts)
+      if (isNaN(d)) d = new Date(ts.replace(' ', 'T') + 'Z')
+      if (isNaN(d)) return ts
+      const now = new Date()
+      const diff = (now - d) / 1000
+      if (diff < 60) return 'just now'
+      if (diff < 3600) return Math.floor(diff / 60) + 'm ago'
+      if (diff < 86400) return Math.floor(diff / 3600) + 'h ago'
+      return d.toLocaleDateString()
+    }
+  }
+}).mount('#app')
+</script>
+
+</body>
+</html>
