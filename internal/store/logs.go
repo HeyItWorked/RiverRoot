@@ -1,9 +1,13 @@
 package store
 
 import (
+	"bufio"
+	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 // LogStore manages log files for builds.
@@ -34,4 +38,33 @@ func (l *LogStore) WriteLog(buildID string, line string) error {
 
 	_, err = fmt.Fprintln(file, line)
 	return err
+}
+
+// TailLog streams a build's log file to out, then watches for new lines (like tail -f).
+// Stops when ctx is cancelled (e.g. client disconnects or build finishes).
+func (l *LogStore) TailLog(ctx context.Context, buildID string, out io.Writer) error {
+	path := filepath.Join(l.dir, buildID+".log")
+	file, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	// catch up: read everything already in the file
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		fmt.Fprintln(out, scanner.Text())
+	}
+
+	// poll: check for new lines every 200ms until cancelled
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-time.After(200 * time.Millisecond):
+			for scanner.Scan() {
+				fmt.Fprintln(out, scanner.Text())
+			}
+		}
+	}
 }
