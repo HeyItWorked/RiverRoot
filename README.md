@@ -12,7 +12,9 @@ Describe your steps in a YAML file, start the server, and open the dashboard to 
 
 ## Demo
 
-The dashboard lists builds on the left; selecting one shows its steps and their output.
+A hosted dashboard with five seeded builds, three passed and two failed. Selecting one shows its steps and their output.
+
+**[heyitworked.github.io/riverroot](https://heyitworked.github.io/riverroot/)**
 
 ![The riverroot dashboard listing builds, with the selected build's lint, test and build steps](.github/assets/riverroot-screenshot.png)
 

@@ -1,0 +1,54 @@
+[
+  {
+    "ID": "a1b2c3d4",
+    "CreatedAt": "2026-03-15 10:30:00",
+    "Pipeline": "my-app",
+    "Failed": false,
+    "Steps": [
+      {"Name": "lint", "ExitCode": 0, "Stdout": "checking style...\nno issues found\n"},
+      {"Name": "test", "ExitCode": 0, "Stdout": "ok  \tgithub.com/user/my-app/internal/api\t0.013s\nok  \tgithub.com/user/my-app/internal/auth\t0.010s\nok  \tgithub.com/user/my-app/internal/store\t0.008s\n"},
+      {"Name": "build", "ExitCode": 0, "Stdout": "compiling...\n"}
+    ]
+  },
+  {
+    "ID": "e5f6a7b8",
+    "CreatedAt": "2026-03-15 10:15:00",
+    "Pipeline": "my-app",
+    "Failed": true,
+    "Steps": [
+      {"Name": "lint", "ExitCode": 1, "Stdout": "checking style...\n", "Stderr": "internal/api/server.go:47:2: exported function ServeHTTP should have comment or be unexported (golint)\n"}
+    ]
+  },
+  {
+    "ID": "c9d0e1f2",
+    "CreatedAt": "2026-03-15 09:45:00",
+    "Pipeline": "my-app",
+    "Failed": false,
+    "Steps": [
+      {"Name": "lint", "ExitCode": 0, "Stdout": "checking style...\nno issues found\n"},
+      {"Name": "test", "ExitCode": 0, "Stdout": "ok  \tgithub.com/user/my-app/internal/api\t0.011s\nok  \tgithub.com/user/my-app/internal/auth\t0.009s\nok  \tgithub.com/user/my-app/internal/store\t0.007s\n"},
+      {"Name": "build", "ExitCode": 0, "Stdout": "compiling...\n"}
+    ]
+  },
+  {
+    "ID": "a3b4c5d6",
+    "CreatedAt": "2026-03-15 09:20:00",
+    "Pipeline": "my-app",
+    "Failed": true,
+    "Steps": [
+      {"Name": "lint", "ExitCode": 0, "Stdout": "checking style...\nno issues found\n"},
+      {"Name": "test", "ExitCode": 1, "Stdout": "--- FAIL: TestUserAuth (0.02s)\n    auth_test.go:42: expected token to be valid, got expired\nFAIL\tgithub.com/user/my-app/internal/auth\t0.031s\n", "Stderr": "FAIL\n"}
+    ]
+  },
+  {
+    "ID": "e7f8a9b0",
+    "CreatedAt": "2026-03-15 08:50:00",
+    "Pipeline": "my-app",
+    "Failed": false,
+    "Steps": [
+      {"Name": "lint", "ExitCode": 0, "Stdout": "checking style...\nno issues found\n"},
+      {"Name": "test", "ExitCode": 0, "Stdout": "ok  \tgithub.com/user/my-app/internal/api\t0.012s\nok  \tgithub.com/user/my-app/internal/store\t0.008s\n"},
+      {"Name": "build", "ExitCode": 0, "Stdout": "compiling...\n"}
+    ]
+  }
+]
